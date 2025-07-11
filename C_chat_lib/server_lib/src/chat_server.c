@@ -16,7 +16,7 @@ static void _def_on_client_connect_cb(void* user_data, const client_info_t* clie
 static void _def_on_complete_message_cb(void* user_data, const client_info_t* client, const message_type_t msg_type, const uint8_t* payload, const size_t len);
 static void _def_on_client_disconnect_cb(void* user_data, const client_info_t* client);
 static void _def_on_error_cb(void* user_data, const int error_code, const char* message);
-static void _def_on_parse_complete_cb(void* user_data, const message_type_t msg_type, const uint8_t* payload, const size_t len);
+static void _on_internal_parse_complete_cb(void* user_data, const message_type_t msg_type, const uint8_t* payload, const size_t len);
 
 void server_register_connect_callback(server_context_t* stx, const server_on_client_connected_callback callback, void* user_data)
 {
@@ -51,15 +51,6 @@ void server_register_error_callback(server_context_t* stx, const server_on_error
     {
         stx->on_error_cb = callback ? callback : _def_on_error_cb;
         stx->error_user_data = user_data;
-    }
-}
-
-void server_register_parse_complete_callback(server_context_t* stx, const on_complete_callback callback, void* user_data)
-{
-    if (stx)
-    {
-        stx->on_parse_complete_cb = callback ? callback : _def_on_parse_complete_cb;
-        stx->parse_complete_user_data = user_data;
     }
 }
 
@@ -196,7 +187,6 @@ server_context_t* server_create(const int port, const int max_clients)
     server_register_complete_message_callback(stx, NULL, NULL);
     server_register_disconnect_callback(stx, NULL, NULL);
     server_register_error_callback(stx, NULL, NULL);
-    server_register_parse_complete_callback(stx, NULL, NULL);
     return stx;
 
     FAIL:
@@ -261,14 +251,14 @@ static void _cleanup_server_context(server_context_t* stx)
     }
     if (stx->clients != NULL)
     {
-        // 만약 client_info_t 내부에 동적 할당된 멤버가 있다면, 여기서 반복문을 돌며 해제해야 합니다.
-        // 예를 들어, 각 클라이언트별 파서가 동적으로 할당되었다면 여기서 정리합니다.
-        // for (int i = 0; i < stx->max_clients; ++i) {
-        //     if (stx->clients[i].parser != NULL) {
-        //         destroy_parser(stx->clients[i].parser);
-        //         free(stx->clients[i].parser);
-        //     }
-        // }
+        for (int i = 0; i < stx->max_clients; ++i)
+        {
+            if (stx->clients[i].client_parser != NULL)
+            {
+                destroy_parser(stx->clients[i].client_parser);
+                free(stx->clients[i].client_parser);
+            }
+        }
         free(stx->clients);
     }
     if (stx->shutdown_pipe[0] >= 0)
@@ -471,7 +461,7 @@ static void _handle_client_data(server_context_t* stx, const int poller_index)
         };
         if (bytes_received > 0)
         {
-            if (parse_stream(parser, buffer, bytes_received, stx->on_parse_complete_cb, &mtx) < 0)
+            if (parse_stream(parser, buffer, bytes_received, _on_internal_parse_complete_cb, &mtx) < 0)
             {
                 _handle_error(stx, client, "_handle_client_data : parse_stream() failed.", 0);
                 _remove_client(stx, poller_index);
@@ -701,7 +691,7 @@ static void _def_on_error_cb(void* user_data, const int error_code, const char* 
  * @param payload bytestream
  * @param len payload의 길이
  */
-static void _def_on_parse_complete_cb(void* user_data, const message_type_t msg_type, const uint8_t* payload, const size_t len)
+static void _on_internal_parse_complete_cb(void* user_data, const message_type_t msg_type, const uint8_t* payload, const size_t len)
 {
     const message_context_t* mtx = (message_context_t*)user_data;
     const server_context_t* stx = mtx->server_context;

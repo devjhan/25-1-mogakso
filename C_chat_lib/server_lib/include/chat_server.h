@@ -52,8 +52,6 @@ extern "C"
 		void* disconnect_user_data;
 		server_on_error_callback on_error_cb;
 		void* error_user_data;
-		on_complete_callback on_parse_complete_cb;
-		void* parse_complete_user_data;
 	} server_context_t;
 
 	typedef struct
@@ -93,14 +91,6 @@ extern "C"
 	* @param user_data 콜백 함수 호출 시 첫 번째 인자로 전달될 사용자 정의 데이터
 	*/
 	void server_register_error_callback(server_context_t* stx, const server_on_error_callback callback, void* user_data);
-
-	/**
-	* @brief 파싱이 완료되었을 경우 호출될 콜백 함수를 등록합니다.
-	* @param stx 서버 컨텍스트
-	* @param callback 호출될 함수 포인터
-	* @param user_data 콜백 함수 호출 시 첫 번째 인자로 전달될 사용자 정의 데이터
-	*/
-	void server_register_parse_complete_callback(server_context_t* stx, const on_complete_callback callback, void* user_data);
 
 	/**
 	* @brief 채팅 서버 컨텍스트를 생성하고 초기화합니다.
