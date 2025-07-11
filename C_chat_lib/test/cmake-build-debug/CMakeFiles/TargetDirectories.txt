@@ -1,0 +1,3 @@
+/Users/jhan_acc/CLionProjects/chat_project/test/cmake-build-debug/CMakeFiles/echo_test.dir
+/Users/jhan_acc/CLionProjects/chat_project/test/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/jhan_acc/CLionProjects/chat_project/test/cmake-build-debug/CMakeFiles/rebuild_cache.dir

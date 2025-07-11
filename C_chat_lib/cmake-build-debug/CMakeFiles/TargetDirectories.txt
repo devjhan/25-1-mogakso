@@ -1,0 +1,3 @@
+/Users/jhan_acc/projects/chat_project/C_chat_lib/cmake-build-debug/CMakeFiles/chat.dir
+/Users/jhan_acc/projects/chat_project/C_chat_lib/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/jhan_acc/projects/chat_project/C_chat_lib/cmake-build-debug/CMakeFiles/rebuild_cache.dir
