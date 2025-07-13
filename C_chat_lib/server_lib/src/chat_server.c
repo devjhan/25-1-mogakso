@@ -3,6 +3,7 @@
 //
 
 #include "chat_server.h"
+#include "command.h"
 #include "socket_utils.h"
 #include <errno.h>
 #include <stdio.h>
@@ -26,7 +27,6 @@ void server_register_connect_callback(server_context_t* stx, const server_on_cli
         stx->connect_user_data = user_data;
     }
 }
-
 void server_register_complete_message_callback(server_context_t* stx, const server_on_complete_message_received_callback callback, void* user_data)
 {
     if (stx)
@@ -35,7 +35,6 @@ void server_register_complete_message_callback(server_context_t* stx, const serv
         stx->completed_message_user_data = user_data;
     }
 }
-
 void server_register_disconnect_callback(server_context_t* stx, const server_on_client_disconnected_callback callback, void* user_data)
 {
     if (stx)
@@ -44,7 +43,6 @@ void server_register_disconnect_callback(server_context_t* stx, const server_on_
         stx->disconnect_user_data = user_data;
     }
 }
-
 void server_register_error_callback(server_context_t* stx, const server_on_error_callback callback, void* user_data)
 {
     if (stx)
@@ -86,7 +84,6 @@ static void _handle_error(const server_context_t* stx, const client_info_t* clie
         fprintf(stderr, "%s\n", final_msg);
     }
 }
-
 static void _cleanup_server_context(server_context_t* stx);
 
 server_context_t* server_create(const int port, const int max_clients)
@@ -108,6 +105,8 @@ server_context_t* server_create(const int port, const int max_clients)
     stx->listening_socket_fd = -1;
     stx->shutdown_pipe[0] = -1;
     stx->shutdown_pipe[1] = -1;
+    stx->command_pipe[0] = -1;
+    stx->command_pipe[1] = -1;
 
     stx->listening_socket_fd = create_tcp_socket();
 
@@ -146,7 +145,7 @@ server_context_t* server_create(const int port, const int max_clients)
     stx->client_count = 0;
 
     stx->clients = (client_info_t*)calloc(max_clients, sizeof(client_info_t));
-    stx->pollers = (struct pollfd*)calloc(max_clients + 2, sizeof(struct pollfd));
+    stx->pollers = (struct pollfd*)calloc(max_clients + 3, sizeof(struct pollfd));
 
     if (stx->clients == NULL || stx->pollers == NULL)
     {
@@ -166,9 +165,26 @@ server_context_t* server_create(const int port, const int max_clients)
     stx->pollers[1].fd = stx->shutdown_pipe[0];
     stx->pollers[1].events = POLLIN;
 
-    for (int i = 2; i < max_clients + 2; ++i)
+    if (pipe(stx->command_pipe) == -1)
+    {
+        _handle_error(stx, NULL, "server_create: pipe() for command pipe failed.", errno);
+        goto FAIL;
+    }
+
+    stx->pollers[2].fd = stx->command_pipe[0];
+    stx->pollers[2].events = POLLIN;
+
+    for (int i = 3; i < max_clients + 3; ++i)
     {
         stx->pollers[i].fd = -1;
+    }
+
+    stx->command_queue = queue_create();
+
+    if (stx->command_queue == NULL)
+    {
+        _handle_error(stx, NULL, "server_create: queue_create() failed.", ENOMEM);
+        goto FAIL;
     }
 
     stx->server_thread = 0;
@@ -193,7 +209,6 @@ server_context_t* server_create(const int port, const int max_clients)
     _cleanup_server_context(stx);
     return NULL;
 }
-
 void server_shutdown(server_context_t* stx)
 {
     if (stx == NULL)
@@ -229,7 +244,6 @@ void server_shutdown(server_context_t* stx)
         pthread_join(stx->server_thread, NULL);
     }
 }
-
 void server_destroy(server_context_t* stx)
 {
     _cleanup_server_context(stx);
@@ -268,6 +282,18 @@ static void _cleanup_server_context(server_context_t* stx)
     if (stx->shutdown_pipe[1] >= 0)
     {
         close(stx->shutdown_pipe[1]);
+    }
+    if (stx->command_pipe[0] >= 0)
+    {
+        close(stx->command_pipe[0]);
+    }
+    if (stx->command_pipe[1] >= 0)
+    {
+        close(stx->command_pipe[1]);
+    }
+    if (stx->command_queue != NULL)
+    {
+        queue_destroy(stx->command_queue, destroy_command);
     }
     if (stx->listening_socket_fd >= 0)
     {
@@ -320,6 +346,7 @@ int server_start(server_context_t* stx)
 static void _add_client(server_context_t* stx);
 static void _handle_client_data(server_context_t* stx, const int poller_index);
 static void _remove_client(server_context_t* stx, const int poller_index);
+static void _process_commands(server_context_t* stx);
 
 /**
 * @brief 서버의 메인 이벤트 루프. 별도의 쓰레드에서 호출됩니다.
@@ -337,10 +364,9 @@ static void* _server_run(void* arg)
         return NULL;
     }
 
-    char is_running = 1;
-    while (is_running)
+    while (1)
     {
-        const int poll_count = poll(stx->pollers, stx->max_clients + 2, -1);
+        const int poll_count = poll(stx->pollers, stx->max_clients + 3, -1);
 
         if (poll_count < 0)
         {
@@ -349,8 +375,21 @@ static void* _server_run(void* arg)
                 continue;
             }
             _handle_error(stx, NULL, "_server_run : poll() failed.", errno);
-            is_running = 0;
             break;
+        }
+
+        if (stx->pollers[1].revents & POLLIN)
+        {
+            char buf[8];
+            read(stx->shutdown_pipe[0], buf, sizeof(buf));
+            break;
+        }
+
+        if (stx->pollers[2].revents & POLLIN)
+        {
+            char buf[8];
+            read(stx->command_pipe[0], buf, sizeof(buf));
+            _process_commands(stx);
         }
 
         if (stx->pollers[0].revents & POLLIN)
@@ -358,13 +397,7 @@ static void* _server_run(void* arg)
             _add_client(stx);
         }
 
-        if (stx->pollers[1].revents & POLLIN)
-        {
-            is_running = 0;
-            break;
-        }
-
-        for (int i = 2; i < stx->max_clients + 2; ++i)
+        for (int i = 3; i < stx->max_clients + 3; ++i)
         {
             if (stx->pollers[i].revents)
             {
@@ -388,9 +421,17 @@ static void _add_client(server_context_t* stx)
     socklen_t client_len = sizeof(client_addr);
 
     const int client_fd = accept(stx->listening_socket_fd, (struct sockaddr*)&client_addr, &client_len);
+
     if (client_fd < 0)
     {
         _handle_error(stx, NULL, "_handle_new_connection: accept() failed", errno);
+        return;
+    }
+
+    if (client_fd >= MAX_FD_LIMIT)
+    {
+        _handle_error(stx, NULL, "_handle_new_connection: too big fd", errno);
+        close_socket(client_fd);
         return;
     }
 
@@ -404,7 +445,7 @@ static void _add_client(server_context_t* stx)
 
     int poller_index = -1;
 
-    for (int i = 2; i < stx->max_clients + 2; ++i)
+    for (int i = 3; i < stx->max_clients + 3; ++i)
     {
         if (stx->pollers[i].fd == -1)
         {
@@ -422,7 +463,7 @@ static void _add_client(server_context_t* stx)
     stx->pollers[poller_index].fd = client_fd;
     stx->pollers[poller_index].events = POLLIN;
 
-    const int client_index = poller_index - 2;
+    const int client_index = poller_index - 3;
     stx->clients[client_index].socket_fd = client_fd;
     inet_ntop(AF_INET, &client_addr.sin_addr, stx->clients[client_index].ip_addr, sizeof(stx->clients[client_index].ip_addr));
     stx->clients[client_index].client_parser = (stream_parser_t*)calloc(1, sizeof(stream_parser_t));
@@ -437,6 +478,7 @@ static void _add_client(server_context_t* stx)
     init_parser(stx->clients[client_index].client_parser);
     ++stx->client_count;
 
+    stx->client_map[client_fd] = &stx->clients[client_index];
     stx->on_connect_cb(stx->connect_user_data, &stx->clients[client_index]);
 }
 
@@ -447,7 +489,7 @@ static void _add_client(server_context_t* stx)
  */
 static void _handle_client_data(server_context_t* stx, const int poller_index)
 {
-    client_info_t* client = &stx->clients[poller_index - 2];
+    client_info_t* client = &stx->clients[poller_index - 3];
     stream_parser_t* parser = client->client_parser;
 
     if (stx->pollers[poller_index].revents & POLLIN)
@@ -483,7 +525,6 @@ static void _handle_client_data(server_context_t* stx, const int poller_index)
         _remove_client(stx, poller_index);
     }
 }
-
 /**
  * @brief 기존 클라이언트와의 연결을 끊는 헬퍼 함수 (내부용)
  * @param stx 서버 컨텍스트
@@ -491,24 +532,101 @@ static void _handle_client_data(server_context_t* stx, const int poller_index)
  */
 static void _remove_client(server_context_t* stx, const int poller_index)
 {
-    close_socket(stx->pollers[poller_index].fd);
+    const int client_fd = stx->pollers[poller_index].fd;
+
+    if (client_fd < 0)
+    {
+        return;
+    }
+
+    if (client_fd < MAX_FD_LIMIT)
+    {
+        stx->client_map[client_fd] = NULL;
+    }
 
     stx->pollers[poller_index].fd = -1;
     stx->pollers[poller_index].revents = 0;
 
-    client_info_t* client = &stx->clients[poller_index - 2];
+    client_info_t* client = &stx->clients[poller_index - 3];
     if (client->client_parser != NULL)
     {
         destroy_parser(client->client_parser);
         free(client->client_parser);
         client->client_parser = NULL;
     }
-
     memset(client, 0, sizeof(client_info_t));
     stx->client_count--;
+    close_socket(client_fd);
+}
+static int _is_valid_client(const server_context_t* stx, const int client_fd);
+static void _internal_send_frame(const int client_fd, const message_type_t msg_type, const uint8_t* payload, const size_t payload_len);
+/**
+ * @brief 서버 컨텍스트 내부의 커맨드 큐의 명령어를 처리합니다.
+ * @param stx 서버 컨텍스트
+ */
+static void _process_commands(server_context_t* stx)
+{
+    while (!queue_is_empty(stx->command_queue))
+    {
+        command_t* cmd = queue_pop(stx->command_queue);
+
+        switch (cmd->type)
+        {
+            case CMD_SEND_MESSAGE:
+            {
+                send_command_t* send_cmd = &cmd->data.send_cmd;
+
+                if (_is_valid_client(stx, send_cmd->target_client_fd))
+                {
+                    _internal_send_frame(send_cmd->target_client_fd, send_cmd->msg_type, send_cmd->payload, send_cmd->payload_len);
+                }
+                break;
+            }
+            case CMD_BROADCAST_MESSAGE:
+            {
+                broadcast_command_t* broadcast_cmd = &cmd->data.broadcast_cmd;
+
+                for (int i = 3; i < stx->max_clients + 3; ++i)
+                {
+                    if (i == broadcast_cmd->exclude_client_fd)
+                    {
+                        continue;
+                    }
+                    if (_is_valid_client(stx, i))
+                    {
+                        _internal_send_frame(i, broadcast_cmd->msg_type, broadcast_cmd->payload, broadcast_cmd->payload_len);
+                    }
+                }
+                break;
+            }
+            default:
+                break;
+        }
+        destroy_command(cmd);
+    }
 }
 
-void server_send_payload_to_client(const int client_fd, const message_type_t msg_type, const uint8_t* payload, const size_t payload_len)
+/**
+ * @brief 주어진 소켓 fd가 현재 유효한 클라이언트인지 확인하는 헬퍼 함수 (내부용)
+ */
+static int _is_valid_client(const server_context_t* stx, const int client_fd)
+{
+    if (client_fd < 0 || client_fd >= MAX_FD_LIMIT)
+    {
+        return 0;
+    }
+
+    return stx->client_map[client_fd] != NULL;
+}
+
+/**
+ * @brief 메시지를 프레임으로 만들어 소켓으로 전송하는 저수준 헬퍼 함수 (내부용)
+ * @param client_fd
+ * @param msg_type 
+ * @param payload 
+ * @param payload_len 
+ */
+static void _internal_send_frame(const int client_fd, const message_type_t msg_type, const uint8_t* payload, const size_t payload_len)
 {
     if (client_fd < 0 || payload == NULL)
     {
@@ -552,26 +670,70 @@ void server_send_payload_to_client(const int client_fd, const message_type_t msg
     }
 }
 
-void server_broadcast_message(const server_context_t* stx, const message_type_t msg_type, const uint8_t* payload, const size_t payload_len, const int exclude_fd)
+int server_send_payload_to_client(server_context_t* stx, const int client_fd, const message_type_t msg_type, const uint8_t* payload, const size_t payload_len)
+{
+    if (stx == NULL || client_fd < 0 || payload == NULL)
+    {
+        _handle_error(stx, NULL, "server_send_payload_to_client: invalid arguments provided.", EINVAL);
+        return -1;
+    }
+
+    const command_t* cmd = create_send_command(client_fd, msg_type, payload, payload_len);
+
+    if (cmd == NULL)
+    {
+        _handle_error(stx, NULL, "server_send_payload_to_client: create_send_command() failed.", errno);
+        return -1;
+    }
+
+    queue_push(stx->command_queue, (void*)cmd);
+
+    const char signal = 'c';
+    ssize_t bytes_written;
+
+    do
+    {
+        bytes_written = write(stx->command_pipe[1], &signal, 1);
+    } while (bytes_written == -1 && errno == EINTR);
+
+    if (bytes_written == -1)
+    {
+        _handle_error(stx, NULL, "server_send_payload_to_client: write() to command pipe failed.", errno);
+    }
+    return 0;
+}
+
+int server_broadcast_message(server_context_t* stx, const message_type_t msg_type, const uint8_t* payload, const size_t payload_len, const int exclude_fd)
 {
     if (stx == NULL || payload == NULL)
     {
-        _handle_error(NULL, NULL, "server_broadcast_message: invalid arguments provided.", EINVAL);
-        return;
+        _handle_error(stx, NULL, "server_broadcast_payload: invalid arguments provided.", EINVAL);
+        return -1;
     }
 
-    for (int i = 1; i < stx->max_clients + 1; ++i)
+    const command_t* cmd = create_broadcast_command(msg_type, payload, payload_len, exclude_fd);
+
+    if (cmd == NULL)
     {
-        const int client_fd = stx->pollers[i].fd;
-
-        if (client_fd >= 0)
-        {
-            if (client_fd != exclude_fd)
-            {
-                server_send_payload_to_client(client_fd, msg_type, payload, payload_len);
-            }
-        }
+        _handle_error(stx, NULL, "server_broadcast_payload : create_broadcast_command() failed.", errno);
+        return -1;
     }
+
+    queue_push(stx->command_queue, (void*)cmd);
+
+    const char signal = 'c';
+    ssize_t bytes_written;
+
+    do
+    {
+        bytes_written = write(stx->command_pipe[1], &signal, 1);
+    } while (bytes_written == -1 && errno == EINTR);
+
+    if (bytes_written == -1)
+    {
+        _handle_error(stx, NULL, "server_broadcast_payload: write() to command pipe failed.", errno);
+    }
+    return 0;
 }
 
 /**
@@ -597,7 +759,6 @@ static void _def_on_client_connect_cb(void* user_data, const client_info_t* clie
         fprintf(stderr, "Client connected: (client_info_t is NULL)\n");
     }
 }
-
 /**
  * @brief on_complete_message_cb의 기본값 (내부용)
  * @param user_data 식별자
@@ -644,7 +805,6 @@ static void _def_on_complete_message_cb(void* user_data, const client_info_t* cl
         }
     }
 }
-
 /**
  * @brief on_disconnect_cb의 기본값 (내부용)
  * @param user_data 식별자
@@ -666,7 +826,6 @@ static void _def_on_client_disconnect_cb(void* user_data, const client_info_t* c
         fprintf(stderr, "client disconnected: (client_info_t is NULL)\n");
     }
 }
-
 /**
  * @brief on_error_cb의 기본값 (내부용)
  * @param user_data 식별자
@@ -683,7 +842,6 @@ static void _def_on_error_cb(void* user_data, const int error_code, const char* 
     }
     fprintf(stderr, "ERROR (code=%d): %s\n", error_code, message ? message : "(no message)");
 }
-
 /**
  * @brief on_parse_complete_cb의 기본값 (내부용)
  * @param user_data message_context_t 타입의 구조체. server_context_t, client_info_t를 멤버로 가짐
@@ -694,12 +852,12 @@ static void _def_on_error_cb(void* user_data, const int error_code, const char* 
 static void _on_internal_parse_complete_cb(void* user_data, const message_type_t msg_type, const uint8_t* payload, const size_t len)
 {
     const message_context_t* mtx = (message_context_t*)user_data;
-    const server_context_t* stx = mtx->server_context;
+    server_context_t* stx = mtx->server_context;
     const client_info_t* client = mtx->client_info;
 
     if (msg_type == MSG_TYPE_PING)
     {
-        server_send_payload_to_client(client->socket_fd, MSG_TYPE_PONG, NULL, 0);
+        server_send_payload_to_client(stx, client->socket_fd, MSG_TYPE_PONG, NULL, 0);
         return;
     }
 

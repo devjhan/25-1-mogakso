@@ -3,6 +3,8 @@ project(common C)
 
 add_library(common SHARED
         src/protocol.c
+        src/command_queue.c
+        src/command.c
 )
 
 target_compile_features(common PRIVATE c_std_11)

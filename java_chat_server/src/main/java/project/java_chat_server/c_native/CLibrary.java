@@ -49,12 +49,6 @@ public interface CLibrary extends Library {
         void invoke(Pointer user_data, int error_code, String message);
     }
 
-    //void (*on_complete_callback)(void* user_data, const message_type_t msg_type, const uint8_t* payload, const size_t len);
-    interface OnParseCompleteCallback extends Callback {
-        void invoke(Pointer user_data, int msg_type, Pointer payload, long len);
-    }
-
-
     //server_context_t* server_create(const int port, const int max_clients);
     Pointer serverCreate(int port, int maxClients);
 
@@ -70,6 +64,9 @@ public interface CLibrary extends Library {
     //void server_shutdown(server_context_t* stx);
     void serverShutdown(Pointer serverContext);
 
+    // void server_destroy(server_context_t* stx);
+    void serverDestroy(Pointer serverContext);
+
     //void server_register_connect_callback(server_context_t* stx, const server_on_client_connected_callback callback, void* user_data);
     void serverRegisterConnectCallback(Pointer serverContext, ServerOnClientConnectedCallback callback, Pointer userData);
 
@@ -81,7 +78,4 @@ public interface CLibrary extends Library {
 
     //void server_register_error_callback(server_context_t* stx, const server_on_error_callback callback, void* user_data);
     void serverRegisterErrorCallback(Pointer serverContext, ServerOnErrorCallback callback, Pointer userData);
-
-    //void server_register_parse_complete_callback(server_context_t* stx, const on_complete_callback callback, void* user_data);
-    void serverRegisterParseCompleteCallback(Pointer serverContext, OnParseCompleteCallback callback, Pointer userData);
 }

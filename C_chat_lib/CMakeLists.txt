@@ -19,7 +19,9 @@ file(GLOB_RECURSE ALL_SOURCES
         "common/src/*.c"
         "socket_lib/src/*.c"
 )
-add_library(chat SHARED ${ALL_SOURCES})
+add_library(chat SHARED ${ALL_SOURCES}
+        common/src/command_queue.c
+        common/src/command.c)
 
 target_include_directories(chat PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/client_lib/include"
