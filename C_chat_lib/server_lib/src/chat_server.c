@@ -246,7 +246,10 @@ void server_shutdown(server_context_t* stx)
 }
 void server_destroy(server_context_t* stx)
 {
-    _cleanup_server_context(stx);
+    if (stx->server_state == SERVER_STATE_STOPPED)
+    {
+        _cleanup_server_context(stx);
+    }
 }
 
 /**
@@ -267,6 +270,12 @@ static void _cleanup_server_context(server_context_t* stx)
     {
         for (int i = 0; i < stx->max_clients; ++i)
         {
+            if (stx->clients[i].socket_fd >= 0)
+            {
+                close(stx->clients[i].socket_fd);
+                stx->clients[i].socket_fd = -1;
+            }
+
             if (stx->clients[i].client_parser != NULL)
             {
                 destroy_parser(stx->clients[i].client_parser);
@@ -274,6 +283,7 @@ static void _cleanup_server_context(server_context_t* stx)
             }
         }
         free(stx->clients);
+        stx->clients = NULL;
     }
     if (stx->shutdown_pipe[0] >= 0)
     {
