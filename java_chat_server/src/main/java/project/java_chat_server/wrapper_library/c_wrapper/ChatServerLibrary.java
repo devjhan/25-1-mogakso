@@ -1,17 +1,15 @@
-package project.java_chat_server.wrapper_library;
+package project.java_chat_server.wrapper_library.c_wrapper;
 import com.sun.jna.*;
 import project.java_chat_server.wrapper_library.callbacks.ServerOnClientConnectedCallback;
 import project.java_chat_server.wrapper_library.callbacks.ServerOnClientDisconnectedCallback;
 import project.java_chat_server.wrapper_library.callbacks.ServerOnCompleteMessageReceivedCallback;
 import project.java_chat_server.wrapper_library.callbacks.ServerOnErrorCallback;
-
+import project.java_chat_server.wrapper_library.aliases.ServerContext;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 
 public interface ChatServerLibrary extends Library {
-    class ServerContext extends PointerType {}
-
     class CaseChangingFunctionMapper implements FunctionMapper {
         @Override
         public String getFunctionName(NativeLibrary library, Method method) {
