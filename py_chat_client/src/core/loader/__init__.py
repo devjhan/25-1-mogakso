@@ -1,1 +1,1 @@
-from .lib_loader import client_lib
+from .lib_loader import load_native_library
