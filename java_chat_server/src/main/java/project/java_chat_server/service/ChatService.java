@@ -1,62 +1,127 @@
 package project.java_chat_server.service;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import project.java_chat_server.dto.user.UserLeaveBroadcast;
+import project.java_chat_server.service.model.HandlerResult;
+import project.java_chat_server.service.handlers.*;
 import project.java_chat_server.wrapper_library.ChatServer;
 import project.java_chat_server.wrapper_library.structure.ClientInfo;
 import project.java_chat_server.wrapper_library.enums.MessageType;
+
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
 public class ChatService {
-    private final Map<Integer, String> connectedClients = new ConcurrentHashMap<>();
+    private static final Set<MessageType> VALID_CLIENT_MESSAGE_TYPES = EnumSet.of(
+            MessageType.MSG_TYPE_USER_LOGIN_REQUEST,
+            MessageType.MSG_TYPE_CHAT_TEXT,
+            MessageType.MSG_TYPE_FILE_INFO,
+            MessageType.MSG_TYPE_FILE_CHUNK,
+            MessageType.MSG_TYPE_FILE_END
+    );
+    private final Map<MessageType, MessageHandler> messageHandlers;
+    private final UserService userService;
     private final ChatServer chatServer;
+    private final ObjectMapper objectMapper;
 
-    public ChatService(ChatServer chatServer) {
+    public ChatService(ChatServer chatServer, List<MessageHandler> handlers, UserService userService, ObjectMapper objectMapper) {
         this.chatServer = chatServer;
+        this.messageHandlers = handlers.stream().collect(Collectors.toUnmodifiableMap(MessageHandler::getMessageType, Function.identity()));
+        this.userService = userService;
+        this.objectMapper = objectMapper;
+        log.info("{}개의 메시지 핸들러가 등록되었습니다: {}", messageHandlers.size(), messageHandlers.keySet());
     }
 
-    public void handleClientConnected(ChatServer chatServer, ClientInfo client) {
-        String nickname = "user" + client.socketFd;
-        connectedClients.put(client.socketFd, nickname);
+    public void handleClientConnected(ClientInfo client) {
+        log.info("새로운 클라이언트 연결 수립: id={}, ip={}", client.socketFd, client.ipAddr);
+    }
 
-        log.info("[{}] 님이 접속했습니다. (IP: {})", nickname, client.ipAddr);
+    public void handleClientDisconnected(ClientInfo client) {
+        String nickname = userService.logout(client.socketFd);
+        log.info("클라이언트 연결 종료: id={}, nickname={}", client.socketFd, nickname);
 
-        String welcomeMessage = String.format("[%s] 님이 채팅방에 참여했습니다.", nickname);
+        UserLeaveBroadcast leaveNotice = new UserLeaveBroadcast(nickname);
+
         try {
-            chatServer.broadcast(MessageType.MSG_TYPE_SERVER_NOTICE, welcomeMessage.getBytes(StandardCharsets.UTF_8), client.socketFd);
-        } catch (Exception e) {
-            e.printStackTrace();
+            byte[] payload = objectMapper.writeValueAsBytes(leaveNotice);
+            chatServer.broadcast(MessageType.MSG_TYPE_USER_LEAVE_NOTICE, payload, -1);
+        } catch (JsonProcessingException e) {
+            log.error("사용자 퇴장 공지 직렬화 실패: {}", nickname, e);
+        } catch (IOException e) {
+            log.error("사용자 퇴장 공지 방송 실패: {}", nickname, e);
         }
     }
 
-    public void handleClientDisconnected(ChatServer chatServer, ClientInfo client) {
-        String nickname = connectedClients.remove(client.socketFd);
+    public void handleMessageReceived(ClientInfo client, int msgTypeInt, byte[] payload) {
+        MessageType msgType = MessageType.fromValue(msgTypeInt);
 
-        if (nickname != null) {
-            log.info("[{}] 님이 접속을 종료했습니다.", nickname);
-            String leaveMessage = String.format("[%s] 님이 채팅방을 나갔습니다.", nickname);
+        if (!isValidMessage(msgType)) {
+            handleInvalidMessage(client, msgType);
+            return;
+        }
+
+        MessageHandler handler = messageHandlers.get(msgType);
+
+        if (handler == null) {
+            log.warn("유효한 메시지 타입이지만, 처리할 핸들러가 없습니다: {}", msgType);
+            return;
+        }
+        HandlerResult result = handler.handle(client, payload);
+        executeHandlerResult(result, client.socketFd);
+    }
+
+    private void handleInvalidMessage(ClientInfo client, MessageType msgType) {
+        log.warn("프로토콜 위반 감지. 클라이언트(id:{}, ip:{})가 유효하지 않은 메시지 타입({})을 전송했습니다.", client.socketFd, client.ipAddr, msgType);
+        String errorMessage = String.format("Error: Invalid message type (%s) sent from client.", msgType.name());
+
+        try {
+            chatServer.sendToClient(client.socketFd, MessageType.MSG_TYPE_ERROR_RESPONSE, errorMessage.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            log.error("클라이언트(id:{})에게 에러 응답 전송 실패.", client.socketFd, e);
+        }
+    }
+
+    private boolean isValidMessage(MessageType msgType) {
+        return VALID_CLIENT_MESSAGE_TYPES.contains(msgType);
+    }
+
+    private void executeHandlerResult(HandlerResult result, int senderId) {
+        result.getDirectResponse().ifPresent(response -> {
+            Object dto = response.payload();
+
             try {
-                chatServer.broadcast(MessageType.MSG_TYPE_SERVER_NOTICE, leaveMessage.getBytes(StandardCharsets.UTF_8), client.socketFd);
-            } catch (Exception e) {
-                e.printStackTrace();
+                byte[] payloadBytes = objectMapper.writeValueAsBytes(dto);
+                chatServer.sendToClient(senderId, response.type(), payloadBytes);
+            } catch (IOException e) {
+                log.error("클라이언트(id:{})에게 직접 응답 전송 실패", senderId, e);
             }
-        }
-    }
+        });
 
-    public void handleMessageReceived(ChatServer chatServer, ClientInfo client, byte[] payload) {
-        String nickname = connectedClients.get(client.socketFd);
-        String message = new String(payload, StandardCharsets.UTF_8);
-        String broadcastMessage = String.format("%s: %s", nickname, message);
+        result.getBroadcast().ifPresent(broadcast -> {
+            Object dto = broadcast.payload();
 
-        log.info("메시지 수신 <{}>: {}", nickname, message);
+            try {
+                byte[] payloadBytes;
 
-        try {
-            chatServer.broadcast(MessageType.MSG_TYPE_CHAT_TEXT, broadcastMessage.getBytes(StandardCharsets.UTF_8), client.socketFd);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+                if (broadcast.type() == MessageType.MSG_TYPE_FILE_CHUNK) {
+                    payloadBytes = (byte[]) dto;
+                } else {
+                    payloadBytes = objectMapper.writeValueAsBytes(dto);
+                }
+                chatServer.broadcast(broadcast.type(), payloadBytes, senderId);
+            } catch (IOException e) {
+                log.error("메시지 방송 실패", e);
+            }
+        });
     }
 }

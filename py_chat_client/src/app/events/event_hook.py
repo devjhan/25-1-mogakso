@@ -1,4 +1,6 @@
-class EventHook:
+from src.app.events.event_data import EventData
+
+class _EventHook:
     def __init__(self):
         self._handlers = []
 
@@ -12,13 +14,13 @@ class EventHook:
             self._handlers.remove(handler)
         return self
 
-    def trigger(self, *args, **kwargs):
+    def fire(self, event_payload: EventData):
         for handler in self._handlers:
             try:
-                handler(*args, **kwargs)
+                handler(event_payload)
             except Exception as e:
                 print(e)
 
     __iadd__ = add
     __isub__ = remove
-    __call__ = trigger
+    __call__ = fire

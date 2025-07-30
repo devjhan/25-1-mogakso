@@ -24,21 +24,21 @@ public class ChatServerRunner implements ApplicationRunner {
     private final ChatService chatService;
 
     @Override
-    public void run(ApplicationArguments args) throws Exception {
+    public void run(ApplicationArguments args) {
         log.info("스프링 부트 애플리케이션 시작 완료. 네이티브 채팅 서버 초기화를 시작합니다...");
 
         chatServer.setOnConnectListener(
-                (Pointer userData, ClientInfo client) -> chatService.handleClientConnected(chatServer, client)
+                (Pointer userData, ClientInfo client) -> chatService.handleClientConnected(client)
         );
 
         chatServer.setOnDisconnectListener(
-                (Pointer userData, ClientInfo client) -> chatService.handleClientDisconnected(chatServer, client)
+                (Pointer userData, ClientInfo client) -> chatService.handleClientDisconnected(client)
         );
 
         chatServer.setOnMessageListener(
                 (Pointer userData, ClientInfo client, int msgType, Pointer payload, NativeLong len) -> {
                     byte[] messageBytes = payload.getByteArray(0, len.intValue());
-                    chatService.handleMessageReceived(chatServer, client, messageBytes);
+                    chatService.handleMessageReceived(client, msgType, messageBytes);
                 }
         );
 
@@ -60,7 +60,6 @@ public class ChatServerRunner implements ApplicationRunner {
                     shutdownMessage.getBytes(StandardCharsets.UTF_8),
                     -1
             );
-            // 클라이언트가 메시지를 받을 시간을 잠시 기다려줍니다.
             Thread.sleep(5000);
         } catch (IOException e) {
             log.error("종료 공지 방송 중 에러 발생", e);

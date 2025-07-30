@@ -10,7 +10,6 @@ import project.java_chat_server.wrapper_library.callbacks.ServerOnClientDisconne
 import project.java_chat_server.wrapper_library.callbacks.ServerOnCompleteMessageReceivedCallback;
 import project.java_chat_server.wrapper_library.callbacks.ServerOnErrorCallback;
 import project.java_chat_server.wrapper_library.enums.MessageType;
-
 import java.io.IOException;
 
 @Slf4j
@@ -64,7 +63,7 @@ public class ChatServer implements AutoCloseable {
         }
     }
 
-    public void sendToClient(final int clientId, final MessageType type, final byte[] payload) throws Exception {
+    public void sendToClient(final int clientId, final MessageType type, final byte[] payload) throws IOException {
         final ServerContext currentContext = this.context;
 
         if (currentContext == null) {
@@ -93,7 +92,7 @@ public class ChatServer implements AutoCloseable {
         }
     }
 
-    public void broadcast(final MessageType type, final byte[] payload, final int excludeClientId) throws Exception {
+    public void broadcast(final MessageType type, final byte[] payload, final int excludeClientId) throws IOException {
         final ServerContext currentContext = this.context;
 
         if (currentContext == null) {

@@ -1,6 +1,10 @@
-from .loader import *
+from .dto import *
 from .enums import *
 from .wrapper import *
+from .chat_client import ChatClient
 
-_raw_lib = load_native_library()
-client_lib = config_lib_funcs(_raw_lib)
+__all__ = [
+    "ChatClient",
+    *dto.__all__,
+    *enums.__all__,
+]

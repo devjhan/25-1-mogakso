@@ -1,0 +1,17 @@
+from enum import IntEnum, unique
+
+@unique
+class EventType(IntEnum):
+    LOGIN_SUCCESS = 0
+    LOGIN_FAILURE = 1
+    CONNECTION_SUCCESS = 2
+    CONNECTION_FAILURE = 3
+    NEW_CHAT_MESSAGE = 4
+    FILE_UPLOADED = 5
+    USER_JOINED = 6
+    USER_LEFT = 7
+    SYSTEM_NOTICE = 8
+    INTERNAL_ERROR = 9
+    DISCONNECTED = 10
+    THREAD_CREATED = 11
+    WARNING = 12
