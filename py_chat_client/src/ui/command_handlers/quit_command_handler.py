@@ -4,8 +4,9 @@ from src.ui.command_handlers.command_handler import CommandHandler
 from src.ui.command_type import CommandType
 
 class QuitCommandHandler(CommandHandler):
-    def handle(self, manager: ChatManager, args: List[str]) -> None:
+    def handle(self, manager: "ChatManager", args: List[str]) -> None:
         manager.disconnect()
+        raise EOFError
 
     def get_type(self) -> Type[CommandType]:
         return CommandType.QUIT

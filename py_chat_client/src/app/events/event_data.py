@@ -1,6 +1,6 @@
 from typing import Any, Optional
 from pydantic import BaseModel
-from src.app.events import EventType
+from src.app.events.event_type import EventType
 
 class EventData(BaseModel):
     event_type: EventType

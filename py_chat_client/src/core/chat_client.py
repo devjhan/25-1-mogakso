@@ -17,11 +17,11 @@ class ChatClient:
         self.chunk_size = chunk_size
 
     def register_on_message_callback(self, callback: ON_MESSAGE_CALLBACK, user_data: ctypes.c_void_p = None):
-        self._on_message_callback = ON_MESSAGE_CALLBACK(callback)
+        self._on_message_callback = callback
         client_lib.client_register_complete_message_callback(self._ctx, self._on_message_callback, user_data)
 
     def register_on_error_callback(self, callback: ON_ERROR_CALLBACK, user_data: ctypes.c_void_p = None):
-        self._on_error_callback = ON_ERROR_CALLBACK(callback)
+        self._on_error_callback = callback
         client_lib.client_register_error_callback(self._ctx, self._on_error_callback, user_data)
 
     def send_login_request(self, request: UserLoginRequest):

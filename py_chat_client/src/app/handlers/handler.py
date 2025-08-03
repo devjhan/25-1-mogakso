@@ -7,9 +7,10 @@ if TYPE_CHECKING:
 
 class Handler(ABC):
     @abstractmethod
-    def handle(self, manager: ChatManager, dto: BaseModel) -> None:
+    def handle(self, manager: "ChatManager", dto: BaseModel) -> None:
         pass
 
     @abstractmethod
     def get_type(self) -> Type[BaseModel]:
         pass
+

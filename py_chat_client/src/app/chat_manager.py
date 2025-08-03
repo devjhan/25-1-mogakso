@@ -2,12 +2,13 @@ import os
 from datetime import datetime
 from typing import TYPE_CHECKING, Callable, Optional, Any
 from threading import Thread
-
-from src.app.events import EventType
 from src.app.handlers import *
+from src.configs import *
 from src.core.dto import *
-from src.core import MessageType, ON_MESSAGE_CALLBACK, ON_ERROR_CALLBACK
+from src.core.enums import *
+from src.core.wrapper import *
 from src.core.chat_client import ChatClient
+from src.app.events import *
 import ctypes
 
 if TYPE_CHECKING:
@@ -15,16 +16,16 @@ if TYPE_CHECKING:
     from src.app.events.event_manager import EventManager
 
 class ChatManager:
-    def __init__(self, _config: Configuration, _event_manager: EventManager):
+    def __init__(self, _config: "Configuration", _event_manager: "EventManager"):
         self.config: Configuration = _config
         self.event_manager: EventManager = _event_manager
         self._handlers: dict[MessageType, Handler] = {
             MessageType.MSG_TYPE_USER_LOGIN_RESPONSE: user_login_response_handler,
             MessageType.MSG_TYPE_USER_JOIN_NOTICE: user_join_broadcast_handler,
-            MessageType.MSG_TYPE_USER_LEAVE_NOTICE: user_leave_broadcast_handler,
+            MessageType.MSG_TYPE_USER_LEAVE_NOTICE: user_left_broadcast_handler,
             MessageType.MSG_TYPE_SERVER_NOTICE: system_notice_broadcast_handler,
             MessageType.MSG_TYPE_ERROR_RESPONSE: error_response_handler,
-            MessageType.MSG_TYPE_CHAT_TEXT: chat_text_broadcast_handler,
+            MessageType.MSG_TYPE_CHAT_TEXT: chat_text_broadcast_handler
         }
 
         self.nickname: Optional[str] = None
@@ -35,6 +36,7 @@ class ChatManager:
 
         self._on_message: ON_MESSAGE_CALLBACK = None
         self._on_error: ON_ERROR_CALLBACK = None
+        self._user_data: ctypes.c_void_p = ctypes.cast(ctypes.pointer(ctypes.py_object(self)), ctypes.c_void_p)
 
     def is_logged_in(self) -> bool:
         return self.nickname is not None
@@ -46,8 +48,8 @@ class ChatManager:
         if not self.is_connected():
             try:
                 self._client = ChatClient(self.config.SERVER_IP, self.config.SERVER_PORT, self.config.CHUNK_SIZE)
-                self.register_on_message(self._handle_message, None)
-                self.register_on_error(self._handle_error, None)
+                self.register_on_message(self._handle_message_proxy, self._user_data)
+                self.register_on_error(self._handle_error_proxy, self._user_data)
                 self.event_manager.fire(EventType.CONNECTION_SUCCESS, data=None, source_component=self.__class__.__name__, message="서버에 성공적으로 연결했습니다..")
             except ConnectionError as e:
                 self._client = None
@@ -96,15 +98,15 @@ class ChatManager:
         self.client_id = None
         self.event_manager.fire(EventType.DISCONNECTED, data=None, source_component=self.__class__.__name__, message="연결이 종료되었습니다.")
 
-    def _handle_message(self, user_data: Any, msg_type_val: int, payload_ptr, payload_len: int) -> None:
-        payload_data: bytes = payload_ptr[:payload_len]
-
+    def handle_message(self, msg_type_val: int, payload_ptr, payload_len: int) -> None:
         try:
+            payload_data: bytes = payload_ptr[:payload_len]
+            payload: str = bytes(payload_data).decode('utf-8')
             msg_type = MessageType(msg_type_val)
             handler = self._handlers.get(msg_type)
 
             if handler:
-                dto = handler.get_type().model_validate_json(payload_data)
+                dto = handler.get_type().model_validate_json(payload)
                 handler.handle(self, dto)
             else:
                 self.event_manager.fire(EventType.WARNING, data=None, source_component=self.__class__.__name__, message="경고: 정의되지 않은 메시지 타입을 수신했습니다.")
@@ -112,7 +114,7 @@ class ChatManager:
             error_response = ErrorResponse(errorCode="UNKNOWN", message=str(e), timestamp=datetime.now())
             self.event_manager.fire(EventType.INTERNAL_ERROR, data=error_response, source_component=self.__class__.__name__, message="알 수 없는 오류 발생")
 
-    def _handle_error(self, user_data: Any, error_code: int, message_ptr: ctypes.c_char_p):
+    def handle_error(self, error_code: int, message_ptr: ctypes.c_char_p):
         try:
             error_message: str = message_ptr.value.decode('utf-8', errors='ignore')
             error_response = ErrorResponse(errorCode=f"C_LIBRARY_ERROR({error_code})", message=error_message, timestamp=datetime.now())
@@ -188,6 +190,16 @@ class ChatManager:
             error_response = ErrorResponse(errorCode="UNKNOWN", message=f"{file_path} : {str(e)}",timestamp=datetime.now())
             self.event_manager.fire(EventType.INTERNAL_ERROR, data=error_response, source_component=self.__class__.__name__, message="알 수 없는 오류 발생")
 
+    @staticmethod
+    def _handle_message_proxy(user_data, msg_type_val, payload_ptr, payload_len):
+        instance = ctypes.cast(user_data, ctypes.POINTER(ctypes.py_object)).contents.value
+        instance.handle_message(msg_type_val, payload_ptr, payload_len)
+
+    @staticmethod
+    def _handle_error_proxy(user_data, error_code, message_ptr):
+        instance = ctypes.cast(user_data, ctypes.POINTER(ctypes.py_object)).contents.value
+        instance.handle_error(error_code, message_ptr)
 
 
+chat_manager = ChatManager(_config=config, _event_manager=event_manager)
 

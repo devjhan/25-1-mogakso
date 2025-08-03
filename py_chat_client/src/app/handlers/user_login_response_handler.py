@@ -1,11 +1,13 @@
-from typing import Type
-from src.app.chat_manager import ChatManager
+from typing import Type, TYPE_CHECKING
 from src.app.events import EventType
 from src.app.handlers.handler import Handler
-from src.core import UserLoginResponse
+from src.core.dto import UserLoginResponse
+
+if TYPE_CHECKING:
+    from src.app.chat_manager import ChatManager
 
 class UserLoginResponseHandler(Handler):
-    def handle(self, manager: ChatManager, dto: UserLoginResponse) -> None:
+    def handle(self, manager: "ChatManager", dto: UserLoginResponse) -> None:
         if dto.success:
             manager.nickname = dto.nickname
             manager.client_id = dto.clientId

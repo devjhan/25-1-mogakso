@@ -1,12 +1,14 @@
-from typing import Type
+from typing import Type, TYPE_CHECKING
 from pydantic import BaseModel
-from src.app.chat_manager import ChatManager
 from src.app.events import EventType
 from src.app.handlers import Handler
-from src.core import UserJoinBroadcast
+from src.core.dto import UserJoinBroadcast
+
+if TYPE_CHECKING:
+    from src.app.chat_manager import ChatManager
 
 class UserJoinBroadcastHandler(Handler):
-    def handle(self, manager: ChatManager, dto: UserJoinBroadcast) -> None:
+    def handle(self, manager: "ChatManager", dto: UserJoinBroadcast) -> None:
         if manager.nickname == dto.nickname:
             return
 

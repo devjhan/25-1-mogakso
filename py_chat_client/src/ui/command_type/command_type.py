@@ -3,8 +3,8 @@ from enum import Enum, unique
 @unique
 class CommandType(Enum):
     QUIT = "/quit"
-    HELP = "/help"
     EXIT = "/exit"
+    HELP = "/help"
     CLEAR = "/clear"
 
     USERS = "/users"

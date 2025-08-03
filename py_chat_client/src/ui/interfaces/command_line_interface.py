@@ -1,23 +1,21 @@
 import threading
 from typing import TYPE_CHECKING
-
-from twisted.spread.pb import respond
-
-from src.app.events import EventType
-from src.app.events.event_data import EventData
-from src.configs.configuration import Configuration
-from src.core import UserLoginResponse, ErrorResponse, ChatTextBroadcast, UserJoinBroadcast, UserLeaveBroadcast, \
-    SystemNoticeBroadcast
+from src.configs import config
+from src.app.events import *
+from src.app.chat_manager import chat_manager
+from src.core.dto import *
 from src.ui.command_handlers import quit_command_handler
 from src.ui.command_handlers.command_handler import CommandHandler
 from src.ui.command_type import CommandType
 
+
 if TYPE_CHECKING:
+    from src.configs.configuration import Configuration
     from src.app.chat_manager import ChatManager
     from src.app.events.event_manager import EventManager
 
 class CommandLineInterface:
-    def __init__(self, _chat_manager: ChatManager, _event_manager: EventManager, _config: Configuration):
+    def __init__(self, _chat_manager: "ChatManager", _event_manager: "EventManager", _config: "Configuration"):
         self.chat_manager: ChatManager = _chat_manager
         self.event_manager: EventManager = _event_manager
         self.config: Configuration = _config
@@ -44,18 +42,37 @@ class CommandLineInterface:
             print("연결 실패")
             return
 
+        self.chat_manager.start_daemon()
+
         max_login_attempts, login_attempt = 3, 0
         while not self._is_logged_in_ui and login_attempt < max_login_attempts:
             nickname = input("사용할 닉네임을 입력하세요.(3자 이상, 16자 미만) : ")
             self._login_event.clear()
             self.chat_manager.try_login(nickname)
+            login_attempt += 1
 
             if not self._login_event.wait(timeout=10):
                 print("서버에서 로그인 응답이 없습니다.")
+            if not self._is_logged_in_ui:
+                print(f"로그인에 실패했습니다. 다시 로그인하십시오. ({login_attempt}/{max_login_attempts})")
 
-            login_attempt += 1
-        pass
+        if not self._is_logged_in_ui:
+            print("로그인 실패")
+            return
 
+        while True:
+            try:
+                user_input = input(f"{self.chat_manager.nickname or "..."}: ")
+
+                if not user_input.startswith("/"):
+                    self.chat_manager.send_message(user_input)
+                else:
+                    self._parse_command(user_input)
+            except (KeyboardInterrupt, EOFError):
+                print("클라이언트 프로그램을 종료합니다.")
+                break
+            except Exception as e:
+                print(f"알 수 없는 예외 발생: {e}")
 
     def _parse_command(self, command_str: str):
         parts = command_str.strip().split('/')
@@ -128,4 +145,7 @@ class CommandLineInterface:
 
     def _on_internal_error(self, event_data: EventData):
         response: ErrorResponse = event_data.data
-        print(f"{response.timestamp.strftime("%Y-%m-%dT%H:%M:%S")} {event_data.message} 상세: {response.message}")
+        print(f"{response.timestamp.strftime("%Y-%m-%dT%H:%M:%S")} | {event_data.message} 상세: {response.message}")
+
+
+command_line_interface = CommandLineInterface(_chat_manager=chat_manager, _event_manager=event_manager, _config=config)

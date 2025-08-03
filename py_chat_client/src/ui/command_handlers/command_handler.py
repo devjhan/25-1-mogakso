@@ -7,7 +7,7 @@ if TYPE_CHECKING:
 
 class CommandHandler(ABC):
     @abstractmethod
-    def handle(self, manager: ChatManager, args: List[str]) -> None:
+    def handle(self, manager: "ChatManager", args: List[str]) -> None:
         pass
 
     @abstractmethod

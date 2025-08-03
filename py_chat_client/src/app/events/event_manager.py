@@ -1,6 +1,6 @@
 from collections import defaultdict
 from typing import Callable, Optional, Any
-from . import EventType
+from .event_type import EventType
 from .event_data import EventData
 from .event_hook import _EventHook
 

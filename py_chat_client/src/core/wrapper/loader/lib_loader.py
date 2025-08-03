@@ -7,7 +7,7 @@ def load_native_library():
     lib_ext = ".dylib" if platform.system() == "Darwin" else ".so"
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    root_dir = os.path.join(current_dir, "..", "..", "..")
+    root_dir = os.path.join(current_dir, "..", "..", "..", "..")
 
     lib_dir = os.path.join(root_dir, "resources", "darwin-aarch64" if platform.system() == "Darwin" else "UNDEFINED")
     lib_path = os.path.join(lib_dir, f'{lib_name}{lib_ext}')
