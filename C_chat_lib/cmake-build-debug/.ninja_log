@@ -27,3 +27,15 @@
 243	366	1752412221400792637	libchat.dylib	e3527776d966a0d0
 18	319	1753876894635576381	CMakeFiles/chat.dir/server_lib/src/chat_server.c.o	481557128ed7dfe4
 319	501	1753876894813820573	libchat.dylib	e3527776d966a0d0
+8	296	1754218029813256124	CMakeFiles/chat.dir/client_lib/src/chat_client.c.o	45e261a9db569040
+9	296	1754218029810032927	CMakeFiles/chat.dir/common/src/command.c.o	3db74ac4fffdd4fc
+9	296	1754218029810029593	CMakeFiles/chat.dir/common/src/protocol.c.o	a6daaab802a2383a
+9	298	1754218029815817249	CMakeFiles/chat.dir/server_lib/src/chat_server.c.o	481557128ed7dfe4
+298	471	1754218029985850252	libchat.dylib	e3527776d966a0d0
+9	303	1754661236284439842	CMakeFiles/chat.dir/client_lib/src/chat_client.c.o	45e261a9db569040
+9	304	1754661236287344728	CMakeFiles/chat.dir/server_lib/src/chat_server.c.o	481557128ed7dfe4
+304	503	1754661236483474073	libchat.dylib	e3527776d966a0d0
+8	265	1754661565348625691	CMakeFiles/chat.dir/server_lib/src/chat_server.c.o	481557128ed7dfe4
+265	392	1754661565468693049	libchat.dylib	e3527776d966a0d0
+9	301	1754661768712740459	CMakeFiles/chat.dir/server_lib/src/chat_server.c.o	481557128ed7dfe4
+302	435	1754661768842684269	libchat.dylib	e3527776d966a0d0

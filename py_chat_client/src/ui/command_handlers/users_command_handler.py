@@ -5,12 +5,11 @@ from src.ui.command_type import CommandType
 if TYPE_CHECKING:
     from src.app.chat_manager import ChatManager
 
-class QuitCommandHandler(CommandHandler):
+class UsersCommandHandler(CommandHandler):
     def handle(self, manager: "ChatManager", args: List[str]) -> None:
-        manager.disconnect()
-        raise EOFError
+        pass
 
     def get_type(self) -> Type[CommandType]:
-        return CommandType.QUIT
+        return CommandType.USER_COMMAND
 
-quit_command_handler = QuitCommandHandler()
+users_command_handler = UsersCommandHandler()

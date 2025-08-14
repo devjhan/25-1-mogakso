@@ -4,7 +4,7 @@ from src.configs import config
 from src.app.events import *
 from src.app.chat_manager import chat_manager
 from src.core.dto import *
-from src.ui.command_handlers import quit_command_handler
+from src.ui.command_handlers import quit_command_handler, nickname_command_handler
 from src.ui.command_handlers.command_handler import CommandHandler
 from src.ui.command_type import CommandType
 
@@ -23,6 +23,7 @@ class CommandLineInterface:
         self._commands: dict[CommandType, CommandHandler] = {
             CommandType.QUIT: quit_command_handler,
             CommandType.EXIT: quit_command_handler,
+            CommandType.NICKNAME: nickname_command_handler,
         }
 
         self._is_logged_in_ui: bool = False

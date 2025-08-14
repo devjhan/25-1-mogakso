@@ -193,7 +193,7 @@ static void _cleanup_client_context(client_context_t* ctx)
 
 void client_send_payload(const client_context_t* ctx, const message_type_t msg_type, const uint8_t* payload, const size_t payload_len)
 {
-    if (ctx == NULL || payload == NULL)
+    if (ctx == NULL || (payload == NULL && payload_len != 0))
     {
         _handle_error(NULL, "client_send_payload: invalid argument(s) provided.", EINVAL);
         return;

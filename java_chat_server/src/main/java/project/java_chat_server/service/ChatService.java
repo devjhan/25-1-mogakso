@@ -27,7 +27,8 @@ public class ChatService {
             MessageType.MSG_TYPE_CHAT_TEXT,
             MessageType.MSG_TYPE_FILE_INFO,
             MessageType.MSG_TYPE_FILE_CHUNK,
-            MessageType.MSG_TYPE_FILE_END
+            MessageType.MSG_TYPE_FILE_END,
+            MessageType.MSG_TYPE_FILE_REQUEST
     );
     private final Map<MessageType, MessageHandler> messageHandlers;
     private final UserService userService;

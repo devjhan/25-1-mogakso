@@ -391,14 +391,20 @@ static void* _server_run(void* arg)
         if (stx->pollers[1].revents & POLLIN)
         {
             char buf[8];
-            read(stx->shutdown_pipe[0], buf, sizeof(buf));
+            ssize_t bytes_read;
+            do {
+                bytes_read = read(stx->shutdown_pipe[0], buf, sizeof(buf));
+            } while (bytes_read == -1 && errno == EINTR);
             break;
         }
 
         if (stx->pollers[2].revents & POLLIN)
         {
             char buf[8];
-            read(stx->command_pipe[0], buf, sizeof(buf));
+            ssize_t bytes_read;
+            do {
+                bytes_read = read(stx->command_pipe[0], buf, sizeof(buf));
+            } while (bytes_read == -1 && errno == EINTR);
             _process_commands(stx);
         }
 
@@ -598,13 +604,15 @@ static void _process_commands(server_context_t* stx)
 
                 for (int i = 3; i < stx->max_clients + 3; ++i)
                 {
-                    if (i == broadcast_cmd->exclude_client_fd)
+                    const int client_fd = stx->pollers[i].fd;
+
+                    if (client_fd < 0 || client_fd == broadcast_cmd->exclude_client_fd)
                     {
                         continue;
                     }
-                    if (_is_valid_client(stx, i))
+                    if (_is_valid_client(stx, client_fd))
                     {
-                        _internal_send_frame(i, broadcast_cmd->msg_type, broadcast_cmd->payload, broadcast_cmd->payload_len);
+                        _internal_send_frame(client_fd, broadcast_cmd->msg_type, broadcast_cmd->payload, broadcast_cmd->payload_len);
                     }
                 }
                 break;

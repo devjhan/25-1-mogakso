@@ -2,6 +2,8 @@ package project.java_chat_server.service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
+
+import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -12,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class UserService {
     private final Map<Integer, String> loggedInUsers = new ConcurrentHashMap<>();
 
-    public void login(int clientId, String nickname) throws UserLoginException {
+    public synchronized void login(int clientId, String nickname) throws UserLoginException {
         if (isLoggedIn(clientId)) {
             throw new UserLoginException("이미 로그인된 상태입니다.");
         }
@@ -56,8 +58,12 @@ public class UserService {
         return nickname.matches("^[a-zA-Z0-9]+$");
     }
 
-    public Set<Integer> getAllLoggedInClientIds() {
+    public Set<Integer> getUserIds() {
         return loggedInUsers.keySet();
+    }
+
+    public Collection<String> getAllNicknames() {
+        return loggedInUsers.values();
     }
 
     public static class UserLoginException extends Exception {
