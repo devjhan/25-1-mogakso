@@ -9,19 +9,19 @@
 
 # 상세
 - Core Engine: 저수준 소켓 통신 구현 
-시스템의 신뢰성, 성능을 담당하는 코어 라이브러리를 C로 구현했습니다.
--- 추상화: 운영체제의 소켓 API를 래핑하여 사용했습니다(```C_chat_lib/socket_lib```). 대상 운영체제가 변경되는 경우에도 해당 디렉토리의 구현 파일만 수정하면 사용할 수 있도록 설계하였습니다. 현재 시스템은 macOS 기반으로 작성되어 있습니다.
--- 커맨드 큐: 비동기 메시지 처리를 위해 내부적으로 커맨드 큐 구조(```C_Chat_lib/common```)를 설계하여, 처리 효율을 극대화하였습니다.
+  - 시스템의 신뢰성, 성능을 담당하는 코어 라이브러리를 C로 구현했습니다.
+  - 추상화: 운영체제의 소켓 API를 래핑하여 사용했습니다(```C_chat_lib/socket_lib```). 대상 운영체제가 변경되는 경우에도 해당 디렉토리의 구현 파일만 수정하면 사용할 수 있도록 설계하였습니다. 현재 시스템은 macOS 기반으로 작성되어 있습니다.
+  - 커맨드 큐: 비동기 메시지 처리를 위해 내부적으로 커맨드 큐 구조(```C_Chat_lib/common```)를 설계하여, 처리 효율을 극대화하였습니다.
 
 - SpringBoot Server: 서버 단의 비즈니스 로직
-코어 기능을 제외한 나머지 어플리케이션 단의 기능을 스프링부트 프레임워크를 통해 작성하였습니다.
--- JNI: 코어 라이브러리 파일을 JAVA 환경에서 직접 호출하여 사용하도록 구현했습니다.
--- Handler 패턴: 클라이언트에게 받는 모든 요청을 ChatService 단에서 직접 처리하는 것이 아닌, MessageHandler라는 인터페이스를 통해 처리하게 했습니다. 이 인터페이스를 handle이라는 메서드를 통해 HandlerResult라는 공통 인터페이스를 출력하게 하여 ChatService 단의 처리 로직을 명확히 하고 가독성을 개선하였습니다. 메시지 타입 추가에 따른 유지보수 난이도 역시 개선하였습니다.
+  - 코어 기능을 제외한 나머지 어플리케이션 단의 기능을 스프링부트 프레임워크를 통해 작성하였습니다.
+  - JNA: 코어 라이브러리 파일을 JAVA 환경에서 직접 호출하여 사용하도록 구현했습니다.
+  - Handler 패턴: 클라이언트에게 받는 모든 요청을 ChatService 단에서 직접 처리하는 것이 아닌, MessageHandler라는 인터페이스를 통해 처리하게 했습니다. 이 인터페이스를 handle이라는 메서드를 통해 HandlerResult라는 공통 인터페이스를 출력하게 하여 ChatService 단의 처리 로직을 명확히 하고 가독성을 개선하였습니다. 메시지 타입 추가에 따른 유지보수 난이도 역시 개선하였습니다.
 
 - Python Client: 
--- C 라이브러리 로드: ctypes 라이브러리를 통해 파이썬 앱에서 직접 C 라이브러리를 호출하게 하였습니다.
--- Event Driven UI: EventManager 클래스를 통해 라이브러리 단의 네트워크 이벤트, UI의 업데이트를 비동기적으로 연결하였습니다. ChatManger가 C 라이브러리와 소통하며 발생시키는 Event를 CommandLineInterface에서 _subscribe_events로 필요한 이벤트를 구독하고, 이벤트 발생시 지정된 콜백(_on_...)을 호출하여 갱신하도록 하였습니다.
+  - C 라이브러리 로드: ctypes 라이브러리를 통해 파이썬 앱에서 직접 C 라이브러리를 호출하게 하였습니다.
+  - Event Driven UI: EventManager 클래스를 통해 라이브러리 단의 네트워크 이벤트, UI의 업데이트를 비동기적으로 연결하였습니다. ChatManger가 C 라이브러리와 소통하며 발생시키는 Event를 CommandLineInterface에서 _subscribe_events로 필요한 이벤트를 구독하고, 이벤트 발생시 지정된 콜백(*_on_*...)을 호출하여 갱신하도록 하였습니다.
 
 # 기술 상세
 - Languages: C, Java, Python
-- Framework, Libraries: SpringBoot, JNI, ctypes
+- Framework, Libraries: SpringBoot, JNA, ctypes
