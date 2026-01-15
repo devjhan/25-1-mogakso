@@ -1,0 +1,12 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/jhan_acc/projects/chat_project/C_chat_lib/build/cmake_install.cmake",
+		"/Users/jhan_acc/projects/chat_project/C_chat_lib/build/socket_lib/cmake_install.cmake",
+		"/Users/jhan_acc/projects/chat_project/C_chat_lib/build/common/cmake_install.cmake",
+		"/Users/jhan_acc/projects/chat_project/C_chat_lib/build/client_lib/cmake_install.cmake",
+		"/Users/jhan_acc/projects/chat_project/C_chat_lib/build/server_lib/cmake_install.cmake",
+		"/Users/jhan_acc/projects/chat_project/C_chat_lib/build/test/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

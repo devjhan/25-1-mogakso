@@ -31,9 +31,81 @@ dependencies {
     implementation 'commons-codec:commons-codec:1.16.0'
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.mockito:mockito-junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+// C 라이브러리 빌드 및 복사 자동화
+def cLibDir = file("${projectDir}/../C_chat_lib")
+def cLibBuildDir = file("${cLibDir}/build")
+def libName = System.getProperty("os.name").toLowerCase().contains("mac") ? "libchat.dylib" : "libchat.so"
+def platform = detectPlatform()
+
+def detectPlatform() {
+    def os = System.getProperty("os.name").toLowerCase()
+    def arch = System.getProperty("os.arch").toLowerCase()
+    
+    if (os.contains("mac")) {
+        return arch.contains("aarch64") || arch.contains("arm64") ? "darwin-aarch64" : "darwin-x86_64"
+    } else if (os.contains("linux")) {
+        return arch.contains("aarch64") || arch.contains("arm64") ? "linux-aarch64" : "linux-x86_64"
+    } else {
+        return "unknown"
+    }
+}
+
+def javaLibTarget = file("${projectDir}/src/main/resources/${platform}/${libName}")
+
+task buildCLibrary {
+    description = "Build C chat library"
+    group = "build"
+    
+    doFirst {
+        // 빌드 디렉토리 생성
+        cLibBuildDir.mkdirs()
+    }
+    
+    doLast {
+        // CMake 실행 (처음만)
+        if (!new File(cLibBuildDir, "CMakeCache.txt").exists()) {
+            exec {
+                workingDir = cLibBuildDir
+                commandLine = ["cmake", "..", "-DBUILD_TESTS=ON"]
+            }
+        }
+        
+        // Make 실행
+        exec {
+            workingDir = cLibBuildDir
+            commandLine = ["make", "-j${Runtime.runtime.availableProcessors()}"]
+        }
+    }
+    
+    outputs.file("${cLibBuildDir}/${libName}")
+}
+
+task copyCLibrary(type: Copy, dependsOn: buildCLibrary) {
+    description = "Copy C library to resources directory"
+    group = "build"
+    
+    from("${cLibBuildDir}/${libName}")
+    into("${projectDir}/src/main/resources/${platform}")
+    rename(libName, libName)
+    
+    onlyIf { file("${cLibBuildDir}/${libName}").exists() }
+    
+    doLast {
+        logger.lifecycle("Copied C library to: ${javaLibTarget}")
+    }
+}
+
+// 프로세스 리소스 전에 C 라이브러리 복사
+processResources.dependsOn copyCLibrary
+
+// 클래스 컴파일 전에 C 라이브러리 복사
+compileJava.dependsOn copyCLibrary

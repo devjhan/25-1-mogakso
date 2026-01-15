@@ -1,4 +1,4 @@
-from ui.interfaces import command_line_interface
+from src.ui.interfaces import command_line_interface
 
 def main():
     command_line_interface.run()

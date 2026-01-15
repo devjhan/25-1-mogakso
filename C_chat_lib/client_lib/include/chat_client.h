@@ -64,7 +64,24 @@ extern "C"
 
     /**
     * @brief 실시간 채팅 루프를 시작합니다.
+    * @details 이 함수는 블로킹(blocking) 함수입니다. 내부적으로 poll()을 사용하여
+    *          무한 루프로 메시지를 수신 대기합니다. 
+    *          함수는 client_shutdown()이 호출되거나 연결이 종료될 때까지 반환하지 않습니다.
+    * 
+    * @warning 이 함수를 메인 스레드에서 호출하면 이후 코드가 실행되지 않습니다.
+    *          별도의 스레드에서 실행하거나, 비동기 처리가 필요한 경우 적절한 스레드 관리를 수행해야 합니다.
+    * 
     * @param ctx 클라이언트 컨텍스트
+    * 
+    * @example
+    * // 올바른 사용법 (별도 스레드에서 실행)
+    * void* chat_thread(void* arg) {
+    *     client_context_t* ctx = (client_context_t*)arg;
+    *     client_start_chat(ctx);
+    *     return NULL;
+    * }
+    * pthread_t thread;
+    * pthread_create(&thread, NULL, chat_thread, client_ctx);
     */
     void client_start_chat(client_context_t* ctx);
 

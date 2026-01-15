@@ -13,6 +13,15 @@ extern "C"
     #include <stddef.h>
     #define HEADER_SIZE 5
 
+    /**
+    * @brief 메시지 타입 열거형
+    * @warning enum 값이 uint8_t 범위(0-255)를 초과하는 경우,
+    *          frame_message()에서 프레임에 저장될 때는 하위 바이트만 저장됩니다.
+    *          예: MSG_TYPE_PONG (901) → 프레임에서는 133 (0x85)로 저장됨
+    *          parse_stream()에서 파싱할 때도 동일한 값이 반환됩니다.
+    *          따라서 900 이상의 enum 값은 실제로는 132-133으로 처리됩니다.
+    * @note 향후 버전에서는 enum 값 범위를 uint8_t 범위로 제한하는 것을 고려해야 합니다.
+    */
     typedef enum
     {
         MSG_TYPE_CHAT_TEXT = 1,
@@ -31,8 +40,8 @@ extern "C"
 
         MSG_TYPE_ERROR_RESPONSE = 500,
 
-        MSG_TYPE_PING = 900,
-        MSG_TYPE_PONG = 901,
+        MSG_TYPE_PING = 900,    /**< 실제 프레임에서는 132 (0x84)로 저장됨 */
+        MSG_TYPE_PONG = 901,    /**< 실제 프레임에서는 133 (0x85)로 저장됨 */
     } message_type_t;
 
     typedef enum

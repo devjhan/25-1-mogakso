@@ -1,0 +1,1 @@
+/usr/bin/cc  -arch arm64 -dynamiclib -Wl,-headerpad_max_install_names -o libsocket_lib.dylib -install_name @rpath/libsocket_lib.dylib CMakeFiles/socket_lib.dir/src/socket_utils.c.o

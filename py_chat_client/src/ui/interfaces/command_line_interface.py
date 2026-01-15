@@ -1,3 +1,4 @@
+import os
 import threading
 from typing import TYPE_CHECKING
 from src.configs import config
@@ -46,8 +47,18 @@ class CommandLineInterface:
         self.chat_manager.start_daemon()
 
         max_login_attempts, login_attempt = 3, 0
+        # 환경 변수에서 닉네임 가져오기 (자동화 테스트용)
+        auto_nickname = os.getenv("CHAT_CLIENT_NICKNAME")
+        
         while not self._is_logged_in_ui and login_attempt < max_login_attempts:
-            nickname = input("사용할 닉네임을 입력하세요.(3자 이상, 16자 미만) : ")
+            if auto_nickname and login_attempt == 0:
+                # 자동 로그인 모드
+                nickname = auto_nickname
+                print(f"자동 로그인 시도: {nickname}")
+            else:
+                # 수동 입력 모드
+                nickname = input("사용할 닉네임을 입력하세요.(3자 이상, 16자 미만) : ")
+            
             self._login_event.clear()
             self.chat_manager.try_login(nickname)
             login_attempt += 1
@@ -55,7 +66,12 @@ class CommandLineInterface:
             if not self._login_event.wait(timeout=10):
                 print("서버에서 로그인 응답이 없습니다.")
             if not self._is_logged_in_ui:
-                print(f"로그인에 실패했습니다. 다시 로그인하십시오. ({login_attempt}/{max_login_attempts})")
+                if auto_nickname:
+                    # 자동 모드에서 실패 시 바로 종료
+                    print(f"자동 로그인에 실패했습니다. (닉네임: {nickname})")
+                    break
+                else:
+                    print(f"로그인에 실패했습니다. 다시 로그인하십시오. ({login_attempt}/{max_login_attempts})")
 
         if not self._is_logged_in_ui:
             print("로그인 실패")

@@ -1,0 +1,1 @@
+/usr/bin/cc  -arch arm64 -dynamiclib -Wl,-headerpad_max_install_names -o libcommon.dylib -install_name @rpath/libcommon.dylib CMakeFiles/common.dir/src/protocol.c.o CMakeFiles/common.dir/src/command_queue.c.o CMakeFiles/common.dir/src/command.c.o

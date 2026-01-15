@@ -12,3 +12,6 @@ target_compile_features(common PRIVATE c_std_11)
 target_include_directories(common PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+find_package(Threads REQUIRED)
+target_link_libraries(common PRIVATE Threads::Threads)
