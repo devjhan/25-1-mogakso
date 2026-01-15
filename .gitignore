@@ -3,3 +3,5 @@
 *.pyc
 C_chat_lib/build/
 java_chat_server/test_output.log
+.md
+!README.md
