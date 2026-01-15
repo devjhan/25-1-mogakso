@@ -1,1 +1,0 @@
-/usr/bin/cc  -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/socket_utils_test.dir/socket_utils_test.c.o -o socket_utils_test  -Wl,-rpath,/Users/jhan_acc/projects/chat_project/C_chat_lib/build/socket_lib ../socket_lib/libsocket_lib.dylib libtest_framework.a
